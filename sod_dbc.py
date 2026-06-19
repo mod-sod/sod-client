@@ -43,6 +43,9 @@ EFFECT_APPLY_AURA = 6
 EFFECT_HEAL = 10
 AURA_DUMMY = 4
 AURA_PERIODIC_HEAL = 8
+AURA_MOD_DAMAGE_PERCENT_DONE = 79   # +% damage; miscvalue = affected school mask
+AURA_MOD_MANA_REGEN_INTERRUPT = 134  # % of spirit mana regen kept under the FSR
+AURA_PERIODIC_DUMMY = 226
 TARGET_UNIT_CASTER = 1
 TARGET_UNIT_TARGET_ENEMY = 6
 TARGET_UNIT_DEST_AREA_ENEMY = 16  # enemies around a cast destination
@@ -51,6 +54,7 @@ TARGET_UNIT_LASTTARGET_AREA_PARTY = 37  # the target's party within radius
 SCHOOL_MASK_FIRE = 1 << 2    # 4
 SCHOOL_MASK_ARCANE = 1 << 6  # 64
 SCHOOL_MASK_SPELLFIRE = SCHOOL_MASK_FIRE | SCHOOL_MASK_ARCANE  # 68 (SoD "Spellfire")
+SCHOOL_MASK_MAGIC = 126  # all six magic schools (Holy..Arcane), excludes Physical
 DISPEL_MAGIC = 1
 NAME_MASK = 16712190  # standard "enUS available" locale mask
 # Proc-on-caster masks (harmful magic / none-class spell damage / ranged auto).
