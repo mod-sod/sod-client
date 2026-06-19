@@ -1,0 +1,2 @@
+# StormLib binding used to read/write the client MPQ archives.
+pympq

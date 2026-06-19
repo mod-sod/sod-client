@@ -1,0 +1,6 @@
+# Scratch dir of extracted/patched DBCs (regenerated on every build).
+_work/
+
+# Python
+__pycache__/
+*.pyc
