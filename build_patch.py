@@ -13,11 +13,11 @@ owner of that consolidation. It reads each content module's *declarative data*:
                                     SpellVisual.dbc  AND each module's server
                                     data/sql/.../sod_<class>_spell_dbc.sql
 
-It globs <server>/modules/mod-sod-*/ for the above, builds one patch (letter
-`z`) written to BOTH the locale chain (patch-<locale>-z.mpq) and the base chain
-(patch-z.mpq), and removes the retired `patch-y` from the old per-module split.
-Stateless: always rebuilt from the clean client + all present modules in one
-pass, so order doesn't matter and partial installs work.
+It globs <server>/modules/mod-sod-*/ for the above and builds one patch (letter
+`z` — the highest letter, so it loads last and outranks every other archive),
+written to BOTH the locale chain (patch-<locale>-z.mpq) and the base chain
+(patch-z.mpq). Stateless: always rebuilt from the clean client + all present
+modules in one pass, so order doesn't matter and partial installs work.
 
 Requires `pympq` (StormLib binding) for the MPQ paths.
 
@@ -43,11 +43,11 @@ import sod_dbc as dbc  # noqa: E402  (after sys.path setup)
 DEFAULT_SERVER = r"/home/ben/wow-server-playerbots"
 DEFAULT_CLIENT = r"E:\Games\World of Warcraft 3.3.5a HD"
 
-# The unified patch letter. `y` is the retired per-module world letter (cleaned
-# up); both are excluded when reading clean client data so a rebuild never
-# sources from our own output.
+# The patch letter is `z` — the highest letter, so it loads last and wins every
+# conflict. Excluded when reading clean client data so a rebuild never sources
+# from our own previous output.
 PATCH_LETTER = "z"
-CUSTOM_PATCH_LETTERS = ("y", "z")
+CUSTOM_PATCH_LETTERS = ("z",)
 
 
 def load_spell_specs(modules_dir):
@@ -195,14 +195,6 @@ def main():
         dbc.pack_mpq(nonloc, base_mpq)
         print("[*] wrote base patch   -> %s (%d DBC file(s))"
               % (base_mpq, len(nonloc)))
-
-    # --- remove the retired per-module 'y' patch (old item-only split) ---
-    for stale in ("patch-y.mpq",
-                  os.path.join(locale, "patch-%s-y.mpq" % locale)):
-        p = os.path.join(data_dir, stale)
-        if os.path.exists(p):
-            os.remove(p)
-            print("[*] removed stale patch -> %s" % p)
 
 
 if __name__ == "__main__":

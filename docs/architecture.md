@@ -118,9 +118,8 @@ The unified patch uses letter **`z`**, written to both archive chains:
   DBCs **plus** the localized `Spell.dbc`.
 
 Writing the non-localized DBCs to both chains guarantees the override wins
-regardless of where the client holds a rival copy. The old per-module split used
-`y` (items) and `z` (mage spells); `sod-client` retires `y` and removes it on
-build.
+regardless of where the client holds a rival copy. `z` is the highest patch
+letter, so the consolidated patch loads last and outranks every other archive.
 
 ## Sources of truth
 

@@ -52,8 +52,8 @@ python build_patch.py --server /path/to/azerothcore --client "/path/to/WoW 3.3.5
 
 The build is **stateless**: it always rebuilds from the clean client plus whatever
 modules are present, in one pass. Order doesn't matter and partial installs work.
-It writes one patch (`patch-z.mpq` + the locale `patch-<locale>-z.mpq`) and removes
-the retired `patch-y` from the old per-module split.
+It writes one patch — `patch-z.mpq` plus the locale `patch-<locale>-z.mpq` (`z` is
+the highest letter, so it loads last and outranks every other archive).
 
 ## Conventions
 
