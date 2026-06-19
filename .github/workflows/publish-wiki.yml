@@ -1,0 +1,123 @@
+name: Publish Wiki
+
+# Mirrors the repo's docs/ folder into the GitHub wiki on every push that touches
+# docs/. The wiki is a separate git repo (sod-client.wiki.git); this treats docs/ as the
+# single source of truth and the wiki as a generated mirror — never hand-edit the wiki.
+#
+# Each docs/<name>.md becomes a wiki page titled from the filename
+# (architecture.md -> "Architecture"); docs/Home.md becomes the wiki landing page.
+# Intra-doc relative links like (architecture.md) are rewritten to the matching wiki
+# page, and a grouped _Sidebar.md nav is generated (the curated order lives in the build step
+# below; any doc not listed there is appended under "Other"). Anything else already present in
+# the wiki is left alone.
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'docs/**'
+      - '.github/workflows/publish-wiki.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write   # GITHUB_TOKEN needs write to push to the repo's wiki
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build wiki pages from docs/
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          # "playerbot-commands" -> "Playerbot-Commands" (page slug; hyphens render as
+          # spaces in the wiki title). Non-alphanumerics collapse to hyphens first.
+          slugify() {
+            echo "$1" | sed -E 's/[^A-Za-z0-9]+/-/g' \
+              | awk -F- 'BEGIN{OFS="-"} { for (i=1;i<=NF;i++) $i=toupper(substr($i,1,1)) substr($i,2) }1'
+          }
+
+          # Map each docs basename -> wiki slug (used for link rewriting).
+          declare -A MAP
+          for f in docs/*.md; do
+            base="$(basename "$f" .md)"
+            MAP["$base"]="$(slugify "$base")"
+          done
+
+          git clone "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.wiki.git" wiki
+
+          # Copy each doc to its wiki page, rewriting intra-doc links to wiki slugs.
+          for f in docs/*.md; do
+            base="$(basename "$f" .md)"
+            slug="${MAP[$base]}"
+            out="wiki/${slug}.md"
+            cp "$f" "$out"
+
+            # Rewrite intra-doc links: ](other.md) and ](other.md#anchor) -> ](Other-Slug)
+            # The ]( anchor prevents partial matches between similarly-named pages.
+            for src in "${!MAP[@]}"; do
+              dst="${MAP[$src]}"
+              sed -i -E "s@\]\(${src}\.md(#[^)]*)?\)@](${dst}\1)@g" "$out"
+            done
+          done
+
+          # ── Curated, grouped sidebar ──────────────────────────────────────────────
+          # Basenames are listed per heading in the order they should appear. Home is
+          # pinned to the top; any docs/*.md not listed below is appended under "Other"
+          # so a newly-added doc never silently vanishes from the nav.
+          sidebar="wiki/_Sidebar.md"
+          declare -A SEEN
+          {
+            printf '### sod-client\n\n'
+            printf -- '- [[Home]]\n\n'
+          } > "$sidebar"
+          SEEN["Home"]=1
+
+          emit_section() {            # $1 = heading; $2.. = basenames in order
+            local heading="$1"; shift
+            local printed=0 base slug title
+            for base in "$@"; do
+              [ -f "docs/${base}.md" ] || continue
+              if [ "$printed" -eq 0 ]; then
+                printf -- '**%s**\n\n' "$heading" >> "$sidebar"; printed=1
+              fi
+              slug="${MAP[$base]}"; title="$(echo "$slug" | tr '-' ' ')"
+              printf -- '- [[%s|%s]]\n' "$title" "$slug" >> "$sidebar"
+              SEEN["$base"]=1
+            done
+            [ "$printed" -eq 1 ] && printf '\n' >> "$sidebar"
+          }
+
+          emit_section "Reference" architecture
+
+          # Catch-all: any doc not placed under a heading above.
+          others=()
+          for f in docs/*.md; do
+            base="$(basename "$f" .md)"
+            [ -n "${SEEN[$base]:-}" ] || others+=("$base")
+          done
+          if [ "${#others[@]}" -gt 0 ]; then
+            printf -- '**Other**\n\n' >> "$sidebar"
+            for base in "${others[@]}"; do
+              slug="${MAP[$base]}"; title="$(echo "$slug" | tr '-' ' ')"
+              printf -- '- [[%s|%s]]\n' "$title" "$slug" >> "$sidebar"
+            done
+          fi
+
+      - name: Commit + push to wiki
+        run: |
+          set -euo pipefail
+          cd wiki
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if [ -n "$(git status --porcelain)" ]; then
+            git add -A
+            git commit -m "Sync wiki from docs/ (${GITHUB_SHA::7})"
+            git push
+          else
+            echo "No wiki changes to publish."
+          fi
