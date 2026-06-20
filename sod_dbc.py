@@ -76,6 +76,14 @@ IDI_INNER = "DBFilesClient\\ItemDisplayInfo.dbc"
 SPELL_INNER = "DBFilesClient\\Spell.dbc"
 SKILL_INNER = "DBFilesClient\\SkillLineAbility.dbc"
 SPELLVIS_INNER = "DBFilesClient\\SpellVisual.dbc"
+CDI_INNER = "DBFilesClient\\CreatureDisplayInfo.dbc"
+CDIE_INNER = "DBFilesClient\\CreatureDisplayInfoExtra.dbc"
+FACTION_INNER = "DBFilesClient\\Faction.dbc"
+FACTIONTPL_INNER = "DBFilesClient\\FactionTemplate.dbc"
+
+# Faction.dbc (3.3.5a): Name_Lang_enUS is field 23, Name_Lang_Mask is field 39.
+FACTION_NAME_FIELD = 23
+FACTION_NAME_MASK_FIELD = 39
 
 # ItemDisplayInfo.dbc (3.3.5a): 25 int fields, field 5 = InventoryIcon[0].
 IDI_ICON_FIELD = 5
@@ -195,6 +203,14 @@ def load_items(modules_dir):
 
 def load_displays(modules_dir):
     return _load_manifests(modules_dir, "client_displays.json")
+
+
+def load_creature_displays(modules_dir):
+    return _load_manifests(modules_dir, "client_creature_displays.json")
+
+
+def load_factions(modules_dir):
+    return _load_manifests(modules_dir, "client_factions.json")
 
 
 # ---------------------------------------------------------------------------
@@ -391,6 +407,125 @@ def build_item_display_info(workdir, displays):
     out = os.path.join(workdir, "ItemDisplayInfo.dbc.patched")
     with open(out, "wb") as fh:
         fh.write(idi.serialize())
+    return out
+
+
+# ---------------------------------------------------------------------------
+# CreatureDisplayInfo / CreatureDisplayInfoExtra / Faction / FactionTemplate
+# builders. Custom NpcCharacter displays and custom factions (3.3.5a layouts,
+# matching the core's `<name>_dbc` override tables). These rows are appended (or
+# updated in place on re-run) so the client renders the custom model and shows the
+# faction name; the matching SERVER rows are hand-written in the module SQL.
+# ---------------------------------------------------------------------------
+def _find_or_append(store, row_id):
+    """Return the record with id `row_id`, or a fresh zeroed record appended."""
+    for rec in store.records:
+        if store.get_int(rec, 0) == row_id:
+            return rec
+    rec = bytearray(store.recsize)
+    store.records.append(rec)
+    return rec
+
+
+def build_creature_display_info(workdir, displays):
+    """CreatureDisplayInfo.dbc rows: ID, ModelID, SoundID, ExtendedDisplayInfoID,
+    CreatureModelScale(float), CreatureModelAlpha. Model/texture strings stay empty.
+    Alpha must be 255 or the model is invisible."""
+    if not displays:
+        return None
+    cdi = WDBC.load(os.path.join(workdir, "CreatureDisplayInfo.dbc"))
+    for d in displays:
+        rec = _find_or_append(cdi, d["id"])
+        cdi.set_int(rec, 0, d["id"])
+        cdi.set_int(rec, 1, d["model"])
+        cdi.set_int(rec, 2, d.get("sound", 0))
+        cdi.set_int(rec, 3, d.get("extended", 0))
+        cdi.set_float(rec, 4, d.get("scale", 1.0))
+        cdi.set_int(rec, 5, d.get("alpha", 255))
+        print("[*] CreatureDisplayInfo.dbc: %d (%s) -> model %d, extra %d"
+              % (d["id"], d.get("name", ""), d["model"], d.get("extended", 0)))
+    out = os.path.join(workdir, "CreatureDisplayInfo.dbc.patched")
+    with open(out, "wb") as fh:
+        fh.write(cdi.serialize())
+    return out
+
+
+def build_creature_display_info_extra(workdir, displays):
+    """CreatureDisplayInfoExtra.dbc rows: race/sex/skin/face/hair + NPCItemDisplay
+    geosets (11) + Flags + BakeName. Reads each display's embedded `extra`."""
+    extras = [d["extra"] for d in displays if d.get("extra")]
+    if not extras:
+        return None
+    cdie = WDBC.load(os.path.join(workdir, "CreatureDisplayInfoExtra.dbc"))
+    for e in extras:
+        rec = _find_or_append(cdie, e["id"])
+        cdie.set_int(rec, 0, e["id"])
+        cdie.set_int(rec, 1, e.get("race", 1))
+        cdie.set_int(rec, 2, e.get("sex", 1))
+        cdie.set_int(rec, 3, e.get("skin", 0))
+        cdie.set_int(rec, 4, e.get("face", 0))
+        cdie.set_int(rec, 5, e.get("hair_style", 0))
+        cdie.set_int(rec, 6, e.get("hair_color", 0))
+        cdie.set_int(rec, 7, e.get("facial_hair", 0))
+        items = (e.get("items", []) + [0] * 11)[:11]
+        for k, it in enumerate(items):
+            cdie.set_int(rec, 8 + k, it)
+        cdie.set_int(rec, 19, e.get("flags", 0))
+        cdie.set_int(rec, 20, cdie.add_string(e.get("bake_name", "")))
+        print("[*] CreatureDisplayInfoExtra.dbc: %d -> race %d sex %d items %s"
+              % (e["id"], e.get("race", 1), e.get("sex", 1), items))
+    out = os.path.join(workdir, "CreatureDisplayInfoExtra.dbc.patched")
+    with open(out, "wb") as fh:
+        fh.write(cdie.serialize())
+    return out
+
+
+def build_faction(workdir, factions):
+    """Faction.dbc rows: ID, ReputationIndex, Name_Lang_enUS, Name_Lang_Mask. A
+    non-reputation faction (rep_index -1) just provides the unit-tooltip name."""
+    if not factions:
+        return None
+    fac = WDBC.load(os.path.join(workdir, "Faction.dbc"))
+    for f in factions:
+        rec = _find_or_append(fac, f["id"])
+        fac.set_int(rec, 0, f["id"])
+        fac.set_int(rec, 1, f.get("rep_index", -1))
+        fac.set_int(rec, FACTION_NAME_FIELD, fac.add_string(f["name"]))
+        fac.set_int(rec, FACTION_NAME_MASK_FIELD, NAME_MASK)
+        print("[*] Faction.dbc: %d -> '%s'" % (f["id"], f["name"]))
+    out = os.path.join(workdir, "Faction.dbc.patched")
+    with open(out, "wb") as fh:
+        fh.write(fac.serialize())
+    return out
+
+
+def build_faction_template(workdir, factions):
+    """FactionTemplate.dbc rows: ID, Faction, Flags, FactionGroup, FriendGroup,
+    EnemyGroup, Enemies[4], Friend[4]. Reads each faction's embedded `template`."""
+    tpls = [f["template"] for f in factions if f.get("template")]
+    if not tpls:
+        return None
+    ft = WDBC.load(os.path.join(workdir, "FactionTemplate.dbc"))
+    for t in tpls:
+        rec = _find_or_append(ft, t["id"])
+        ft.set_int(rec, 0, t["id"])
+        ft.set_int(rec, 1, t.get("faction", 0))
+        ft.set_int(rec, 2, t.get("flags", 0))
+        ft.set_int(rec, 3, t.get("faction_group", 0))
+        ft.set_int(rec, 4, t.get("friend_group", 0))
+        ft.set_int(rec, 5, t.get("enemy_group", 0))
+        enemies = (t.get("enemies", []) + [0] * 4)[:4]
+        friends = (t.get("friends", []) + [0] * 4)[:4]
+        for k, e in enumerate(enemies):
+            ft.set_int(rec, 6 + k, e)
+        for k, fr in enumerate(friends):
+            ft.set_int(rec, 10 + k, fr)
+        print("[*] FactionTemplate.dbc: %d -> faction %d (friend %d/enemy %d)"
+              % (t["id"], t.get("faction", 0), t.get("friend_group", 0),
+                 t.get("enemy_group", 0)))
+    out = os.path.join(workdir, "FactionTemplate.dbc.patched")
+    with open(out, "wb") as fh:
+        fh.write(ft.serialize())
     return out
 
 

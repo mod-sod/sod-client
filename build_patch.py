@@ -93,19 +93,24 @@ def main():
     # --- gather declarative data from every module ---
     items = dbc.load_items(modules_dir)
     displays = dbc.load_displays(modules_dir)
+    creature_displays = dbc.load_creature_displays(modules_dir)
+    factions = dbc.load_factions(modules_dir)
     specs = load_spell_specs(modules_dir)
 
     # Import-then-resolve: importing a spec only defines build_spells (no idx
     # needed); we extract + resolve indexes, then call build_spells(idx).
     has_spells = bool(specs)
-    if not items and not displays and not has_spells:
+    if not items and not displays and not creature_displays and not factions \
+            and not has_spells:
         print("[*] nothing to patch")
         return
 
     os.makedirs(args.workdir, exist_ok=True)
     locale = dbc.detect_locale(args.client)
-    print("[*] aggregated %d item(s), %d display(s), %d spell spec(s) "
-          "(locale: %s)" % (len(items), len(displays), len(specs), locale))
+    print("[*] aggregated %d item(s), %d display(s), %d creature-display(s), "
+          "%d faction(s), %d spell spec(s) (locale: %s)"
+          % (len(items), len(displays), len(creature_displays), len(factions),
+             len(specs), locale))
 
     def extract(name):
         dest = os.path.join(args.workdir, name)
@@ -119,6 +124,12 @@ def main():
         extract("Item.dbc")
     if displays:
         extract("ItemDisplayInfo.dbc")
+    if creature_displays:
+        extract("CreatureDisplayInfo.dbc")
+        extract("CreatureDisplayInfoExtra.dbc")
+    if factions:
+        extract("Faction.dbc")
+        extract("FactionTemplate.dbc")
 
     all_spells, all_visuals = [], []
     per_module = []  # (module_name, spells, retired_ids)
@@ -145,6 +156,11 @@ def main():
     # --- build patched client DBCs ---
     item_patched = dbc.build_item_dbc(args.workdir, items) if items else None
     idi_patched = dbc.build_item_display_info(args.workdir, displays)
+    cdi_patched = dbc.build_creature_display_info(args.workdir, creature_displays)
+    cdie_patched = dbc.build_creature_display_info_extra(args.workdir,
+                                                         creature_displays)
+    faction_patched = dbc.build_faction(args.workdir, factions)
+    factiontpl_patched = dbc.build_faction_template(args.workdir, factions)
     spell_patched = sla_patched = sv_patched = None
     if all_spells:
         spell_patched = dbc.build_spell_dbc(args.workdir, cols, all_spells)
@@ -175,6 +191,12 @@ def main():
         nonloc.append((item_patched, dbc.ITEM_INNER))
     if idi_patched:
         nonloc.append((idi_patched, dbc.IDI_INNER))
+    if cdi_patched:
+        nonloc.append((cdi_patched, dbc.CDI_INNER))
+    if cdie_patched:
+        nonloc.append((cdie_patched, dbc.CDIE_INNER))
+    if factiontpl_patched:
+        nonloc.append((factiontpl_patched, dbc.FACTIONTPL_INNER))
     if sla_patched:
         nonloc.append((sla_patched, dbc.SKILL_INNER))
     if sv_patched:
@@ -182,6 +204,9 @@ def main():
     locale_files = list(nonloc)
     if spell_patched:
         locale_files.append((spell_patched, dbc.SPELL_INNER))
+    if faction_patched:
+        # Faction.dbc is localized (Name_Lang) -> locale chain only.
+        locale_files.append((faction_patched, dbc.FACTION_INNER))
 
     data_dir = os.path.join(args.client, "data")
     locale_mpq = os.path.join(data_dir, locale,

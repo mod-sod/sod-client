@@ -98,6 +98,44 @@ Per-spell keys:
 - `bonus` — `spell_bonus_data` spellpower coefficients.
 - `proc` — a `spell_proc` row (required for auras that proc).
 
+### Custom creature displays — `client_creature_displays.json` (optional)
+
+A custom NpcCharacter look (e.g. a uniquely-dressed humanoid NPC). Each record is a
+`CreatureDisplayInfo` row with an embedded `extra` (`CreatureDisplayInfoExtra`):
+
+```json
+[{ "id": 700001, "name": "Elaine Compton", "model": 50, "extended": 700001,
+   "scale": 1.0, "alpha": 255,
+   "extra": { "id": 700001, "race": 1, "sex": 1, "skin": 4, "face": 2,
+              "hair_style": 6, "hair_color": 1, "facial_hair": 0,
+              "items": [0,0,0,14986,0,14625,14617,0,14623,0,0],
+              "flags": 0, "bake_name": "" } }]
+```
+
+`model` is a stock `CreatureModelData` id (e.g. 50 = HumanFemale); `items` are the
+11 NPCItemDisplay geoset slots (head, shoulder, shirt, chest, belt, legs, boots,
+wrist, gloves, tabard, cape) as `ItemDisplayInfo` ids; empty `bake_name` lets the
+client runtime-bake the composite. `alpha` must be 255 or the model is invisible.
+
+**HD-client caveat:** runtime baking (empty `bake_name`) is unreliable on HD
+model-pack clients — they can **crash** baking hand-authored character geosets.
+For HD compatibility, prefer a stock display id, or supply a pre-baked `bake_name`
+texture. (mod-sod-world's Elaine uses a stock display for this reason.)
+
+### Custom factions — `client_factions.json` (optional)
+
+A named faction plus its reaction template (1:1):
+
+```json
+[{ "id": 2586, "rep_index": -1, "name": "Azeroth Commerce Authority",
+   "template": { "id": 2586, "faction": 2586, "flags": 0, "faction_group": 2,
+                 "friend_group": 2, "enemy_group": 4,
+                 "enemies": [0,0,0,0], "friends": [2586,0,0,0] } }]
+```
+
+`rep_index: -1` = no reputation bar; the row only supplies the unit-tooltip name.
+The template's group masks set who it's friendly/hostile to (here Alliance/Horde).
+
 ## Two outputs, one source
 
 The spec drives **both** sides, which must stay in lockstep:
@@ -108,14 +146,21 @@ The spec drives **both** sides, which must stay in lockstep:
   "generated — do not edit" banner. Committed in the module, so the running server
   has no dependency on `sod-client`.
 
+Creature displays and factions are **client-only** here: this tool builds their
+client DBC rows, but their server rows live in the core's `<name>_dbc` override
+tables (`creaturedisplayinfo_dbc`, `creaturedisplayinfoextra_dbc`, `faction_dbc`,
+`factiontemplate_dbc`) and are **hand-written** in the owning module's base SQL — so
+they must be kept in lockstep with these manifests by hand.
+
 ## Patch letters
 
 The unified patch uses letter **`z`**, written to both archive chains:
 
 - **Base chain** — `Data/patch-z.mpq`: the non-localized DBCs (`Item`,
-  `ItemDisplayInfo`, `SkillLineAbility`, `SpellVisual`).
+  `ItemDisplayInfo`, `SkillLineAbility`, `SpellVisual`, `CreatureDisplayInfo`,
+  `CreatureDisplayInfoExtra`, `FactionTemplate`).
 - **Locale chain** — `Data/<locale>/patch-<locale>-z.mpq`: the same non-localized
-  DBCs **plus** the localized `Spell.dbc`.
+  DBCs **plus** the localized `Spell.dbc` and `Faction.dbc`.
 
 Writing the non-localized DBCs to both chains guarantees the override wins
 regardless of where the client holds a rival copy. `z` is the highest patch
