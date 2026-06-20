@@ -84,6 +84,18 @@ FACTIONTPL_INNER = "DBFilesClient\\FactionTemplate.dbc"
 # Faction.dbc (3.3.5a): Name_Lang_enUS is field 23, Name_Lang_Mask is field 39.
 FACTION_NAME_FIELD = 23
 FACTION_NAME_MASK_FIELD = 39
+# Reputation fields (each *_FIELD is the first of 4 slots, except the parent
+# ones): ReputationIndex(1), RaceMask(2-5), ClassMask(6-9), Base(10-13),
+# Flags(14-17), ParentFactionID(18), ParentFactionMod(19-20 floats),
+# ParentFactionCap(21-22).
+FACTION_REPIDX_FIELD = 1
+FACTION_RACEMASK_FIELD = 2
+FACTION_CLASSMASK_FIELD = 6
+FACTION_BASE_FIELD = 10
+FACTION_FLAGS_FIELD = 14
+FACTION_PARENT_FIELD = 18
+FACTION_PARENTMOD_FIELD = 19
+FACTION_PARENTCAP_FIELD = 21
 
 # ItemDisplayInfo.dbc (3.3.5a): 25 int fields, field 5 = InventoryIcon[0].
 IDI_ICON_FIELD = 5
@@ -482,17 +494,33 @@ def build_creature_display_info_extra(workdir, displays):
 
 def build_faction(workdir, factions):
     """Faction.dbc rows: ID, ReputationIndex, Name_Lang_enUS, Name_Lang_Mask. A
-    non-reputation faction (rep_index -1) just provides the unit-tooltip name."""
+    non-reputation faction (rep_index -1) just provides the unit-tooltip name; a
+    real reputation faction additionally carries a `reputation` block (race/class
+    masks, base, flags, parent category) so it renders in the client's rep pane."""
     if not factions:
         return None
     fac = WDBC.load(os.path.join(workdir, "Faction.dbc"))
     for f in factions:
         rec = _find_or_append(fac, f["id"])
         fac.set_int(rec, 0, f["id"])
-        fac.set_int(rec, 1, f.get("rep_index", -1))
+        fac.set_int(rec, FACTION_REPIDX_FIELD, f.get("rep_index", -1))
         fac.set_int(rec, FACTION_NAME_FIELD, fac.add_string(f["name"]))
         fac.set_int(rec, FACTION_NAME_MASK_FIELD, NAME_MASK)
-        print("[*] Faction.dbc: %d -> '%s'" % (f["id"], f["name"]))
+        rep = f.get("reputation")
+        if rep:
+            for i in range(4):
+                fac.set_int(rec, FACTION_RACEMASK_FIELD + i, rep["race_mask"][i])
+                fac.set_int(rec, FACTION_CLASSMASK_FIELD + i, rep["class_mask"][i])
+                fac.set_int(rec, FACTION_BASE_FIELD + i, rep["base"][i])
+                fac.set_int(rec, FACTION_FLAGS_FIELD + i, rep["flags"][i])
+            fac.set_int(rec, FACTION_PARENT_FIELD, rep.get("parent", 0))
+            for i in range(2):
+                fac.set_float(rec, FACTION_PARENTMOD_FIELD + i,
+                              rep.get("parent_mod", [0, 0])[i])
+                fac.set_int(rec, FACTION_PARENTCAP_FIELD + i,
+                            rep.get("parent_cap", [0, 0])[i])
+        print("[*] Faction.dbc: %d -> '%s' (rep_index %d)"
+              % (f["id"], f["name"], f.get("rep_index", -1)))
     out = os.path.join(workdir, "Faction.dbc.patched")
     with open(out, "wb") as fh:
         fh.write(fac.serialize())

@@ -127,14 +127,23 @@ texture. (mod-sod-world's Elaine uses a stock display for this reason.)
 A named faction plus its reaction template (1:1):
 
 ```json
-[{ "id": 2586, "rep_index": -1, "name": "Azeroth Commerce Authority",
+[{ "id": 2586, "rep_index": 105, "name": "Azeroth Commerce Authority",
+   "reputation": { "race_mask": [1101,0,0,0], "class_mask": [0,0,0,0],
+                   "base": [0,0,0,0], "flags": [16,0,0,0],
+                   "parent": 1118, "parent_mod": [0,0], "parent_cap": [0,0] },
    "template": { "id": 2586, "faction": 2586, "flags": 0, "faction_group": 2,
                  "friend_group": 2, "enemy_group": 4,
                  "enemies": [0,0,0,0], "friends": [2586,0,0,0] } }]
 ```
 
-`rep_index: -1` = no reputation bar; the row only supplies the unit-tooltip name.
-The template's group masks set who it's friendly/hostile to (here Alliance/Horde).
+`rep_index: -1` (and no `reputation` block) = no reputation bar; the row only
+supplies the unit-tooltip name. To make it a **tracked reputation faction**, give
+it a free `rep_index` in **0–127** (the 3.3.5a client tracks 128 reputation slots)
+and a `reputation` block: per-slot race/class masks, starting `base`, `flags`
+(bit `0x10` peace-forced is the usual stock value; the VISIBLE bit is set by the
+server on first rep gain), and a `parent` faction = the rep-pane category (e.g.
+`1118` "Classic"). The template's group masks set who it's friendly/hostile to
+(here Alliance/Horde).
 
 ## Two outputs, one source
 
