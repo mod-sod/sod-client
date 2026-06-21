@@ -39,9 +39,21 @@ if HERE not in sys.path:
 
 import sod_dbc as dbc  # noqa: E402  (after sys.path setup)
 
-# Defaults match this machine; override with --server / --client.
-DEFAULT_SERVER = r"/home/ben/wow-server-playerbots"
-DEFAULT_CLIENT = r"E:\Games\World of Warcraft 3.3.5a HD"
+# Per-machine paths are NOT committed (they leak local layout and mean nothing on
+# another PC). Put yours in an untracked `build_paths_local.py` next to this file:
+#     SERVER = r"C:\path\to\azerothcore"             # has modules/ and data/sql/base/
+#     CLIENT = r"C:\path\to\World of Warcraft 3.3.5a"  # has Data/
+# With it present, runs are flag-free; without it, --server / --client are required.
+# The build needs Windows Python (pympq/StormLib); if the AzerothCore repo lives under
+# WSL, point SERVER at its `\\wsl.localhost\<distro>\...` share.
+DEFAULT_SERVER = None
+DEFAULT_CLIENT = None
+try:
+    import build_paths_local as _local_paths  # noqa: E402  (optional, gitignored)
+    DEFAULT_SERVER = getattr(_local_paths, "SERVER", None)
+    DEFAULT_CLIENT = getattr(_local_paths, "CLIENT", None)
+except ImportError:
+    pass
 
 # The patch letter is `z` — the highest letter, so it loads last and wins every
 # conflict. Excluded when reading clean client data so a rebuild never sources
@@ -76,10 +88,12 @@ def module_class(module_name):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--server", default=DEFAULT_SERVER,
-                    help="AzerothCore root (has modules/ and data/sql/base/)")
-    ap.add_argument("--client", default=DEFAULT_CLIENT,
-                    help="WoW client root (contains Data/ or data/)")
+    ap.add_argument("--server", default=DEFAULT_SERVER, required=DEFAULT_SERVER is None,
+                    help="AzerothCore root (has modules/ and data/sql/base/); "
+                         "default from build_paths_local.py (SERVER) if present")
+    ap.add_argument("--client", default=DEFAULT_CLIENT, required=DEFAULT_CLIENT is None,
+                    help="WoW client root (contains Data/ or data/); "
+                         "default from build_paths_local.py (CLIENT) if present")
     ap.add_argument("--workdir", default=os.path.join(HERE, "_work"),
                     help="scratch dir for extracted DBCs / patched output")
     ap.add_argument("--dry-run", action="store_true",

@@ -1,6 +1,13 @@
 # Scratch dir of extracted/patched DBCs (regenerated on every build).
 _work/
 
+# Local-only dev helper + its extracted DBC scratch (not part of the patch build).
+_gendercheck.py
+_gc/
+
+# Per-machine paths for build_patch.py (SERVER / CLIENT) — never commit.
+build_paths_local.py
+
 # Python
 __pycache__/
 *.pyc
