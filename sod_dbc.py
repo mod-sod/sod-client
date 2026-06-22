@@ -43,6 +43,7 @@ EFFECT_APPLY_AURA = 6
 EFFECT_HEAL = 10
 AURA_DUMMY = 4
 AURA_PERIODIC_HEAL = 8
+AURA_PERIODIC_DAMAGE = 3
 AURA_MOD_DAMAGE_PERCENT_DONE = 79   # +% damage; miscvalue = affected school mask
 AURA_MOD_POWER_REGEN_PERCENT = 110   # +% power (mana) regen; miscvalue = power type
 AURA_MOD_MANA_REGEN_INTERRUPT = 134  # % of spirit mana regen kept under the FSR
